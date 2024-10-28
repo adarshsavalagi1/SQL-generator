@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <title>SQL Query Generator</title>
+    <style>
+        body {
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .dark-mode {
+            background-color: #1a202c;
+            color: #e2e8f0;
+        }
+        .light-mode {
+            background-color: #f7fafc;
+            color: #1a202c;
+        }
+        .chat-container {
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/showdown/dist/showdown.min.js"></script>
+</head>
+<body class="light-mode flex flex-col min-h-screen transition-colors duration-300">
+    <div class="container mx-auto my-4 flex-grow flex flex-col">
+        <div class="flex justify-between items-center mt-4 mb-2">
+            <h1 class="text-4xl font-bold text-center">SQL Query Generator</h1>
+            <label class="flex items-center cursor-pointer">
+                <input type="checkbox" id="darkModeToggle" class="hidden">
+                <span class="bg-gray-300 h-6 w-12 rounded-full flex items-center p-1 transition-colors duration-200">
+                    <span class="bg-white h-5 w-5 rounded-full shadow-md transform transition-transform duration-200"></span>
+                </span>
+            </label>
+        </div>
+
+        <div id="chatHistory" class="chat-container p-4 bg-white rounded-lg shadow-md transition-colors duration-300 dark:bg-gray-800">
+            <!-- Chat history will be dynamically inserted here -->
+        </div>
+
+        <form id="queryForm" class="mt-4 flex">
+            <textarea id="userPrompt" rows="2" class="flex-grow p-2 border border-gray-300 rounded-lg bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white" placeholder="Enter your prompt here..."></textarea>
+            <button type="submit" class="ml-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200" id="sendButton">Send</button>
+        </form>
+
+        <div id="loading" class="loading text-blue-500">Generating SQL query...</div>
+    </div>
+
+    <footer class="bg-gray-800 text-white text-center py-6 mt-4 rounded-t-lg shadow-lg">
+        <div class="container mx-auto">
+            <p class="text-lg font-semibold">SQL Query Generator © 2024</p>
+            <p class="text-sm">Crafted with ❤️ for better SQL management.</p>
+            <a href="#" id="clearHistory" class="text-gray-400 hover:text-white underline mt-2 inline-block">Clear History</a>
+        </div>
+    </footer>
+
+    <script>
+        const converter = new showdown.Converter();
+
+        // Load chat history from session storage
+        function loadChatHistory() {
+            const history = JSON.parse(sessionStorage.getItem('chatHistory')) || [];
+            const chatHistoryDiv = document.getElementById('chatHistory');
+            chatHistoryDiv.innerHTML = '';
+
+            history.forEach(item => {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('flex', 'justify-' + (item.user ? 'end' : 'start'), 'mb-4');
+
+                // Convert Markdown response to HTML using Showdown
+                const messageContent = item.user ? item.text : converter.makeHtml(item.text);
+
+                messageDiv.innerHTML = `
+                    <div class="${item.user ? 'bg-blue-200' : 'bg-gray-200'} p-3 rounded-lg dark:${item.user ? 'bg-blue-600' : 'bg-gray-700'}">
+                        <strong class="text-gray-800 dark:text-white">${item.user ? 'User' : 'Bot'}:</strong>
+                        <div class="whitespace-pre-wrap text-gray-800 dark:text-gray-300 break-words">${messageContent}</div>
+                    </div>
+                `;
+                chatHistoryDiv.appendChild(messageDiv);
+            });
+        }
+
+        loadChatHistory();
+
+        document.getElementById('queryForm').onsubmit = async function(event) {
+            event.preventDefault();
+            const userPrompt = document.getElementById('userPrompt').value.trim();
+
+            if (!userPrompt) return; // Don't submit if empty
+
+            addMessageToSessionStorage(true, userPrompt);
+            document.getElementById('loading').style.display = 'block';
+            const sendButton = document.getElementById('sendButton');
+            sendButton.disabled = true;
+
+            try {
+                // Ensure to replace '/generate' with your actual backend endpoint
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ user_prompt: userPrompt }),
+                });
+
+                if (!response.ok) throw new Error('Network response was not ok');
+
+                const botResponse = await response.text(); // Assuming bot returns Markdown
+                addMessageToSessionStorage(false, botResponse);
+
+                document.getElementById('userPrompt').value = '';
+                loadChatHistory();
+            } catch (error) {
+                console.error('Error fetching SQL query:', error);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                sendButton.disabled = false;
+            }
+        };
+
+        function addMessageToSessionStorage(isUser, message) {
+            const history = JSON.parse(sessionStorage.getItem('chatHistory')) || [];
+            history.push({ user: isUser, text: message });
+            sessionStorage.setItem('chatHistory', JSON.stringify(history));
+        }
+
+        document.getElementById('clearHistory').onclick = function(event) {
+            event.preventDefault();
+            sessionStorage.removeItem('chatHistory');
+            loadChatHistory();
+        };
+
+        document.getElementById('darkModeToggle').addEventListener('change', function() {
+            document.body.classList.toggle('dark-mode');
+            document.body.classList.toggle('light-mode');
+        });
+    </script>
+</body>
+</html>

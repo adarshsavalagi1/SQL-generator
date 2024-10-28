@@ -1,20 +1,21 @@
-import streamlit as st
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
+
 from utils.prompts import create_sql_prompt_template
 from utils.engine import chat
 
-def generate_sql_query(prompt):
-    return chat(create_sql_prompt_template(prompt))
+app = FastAPI()
+templates = Jinja2Templates(directory="templates")
 
+class Prompt(BaseModel):
+    user_prompt: str
 
-st.title("SQL Query Generator")
+@app.get("/", response_class=HTMLResponse)
+async def read_root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
-
-user_prompt = st.text_area("Enter your prompt here:", height=150)
-
-
-if st.button("Generate SQL Query"):
-    if user_prompt:
-        sql_query = generate_sql_query(user_prompt)
-        st.markdown(sql_query)  
-    else:
-        st.error("Please enter a prompt.")
+@app.post("/generate")
+async def generate_sql_query(prompt: Prompt):
+    return chat(create_sql_prompt_template(prompt.user_prompt))
